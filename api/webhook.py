@@ -12,6 +12,9 @@ DISCORD_APPLICATION_ID = os.getenv('DISCORD_APPLICATION_ID')
 
 def verify_signature(raw_body, signature, timestamp):
     try:
+        if not DISCORD_PUBLIC_KEY:
+            print("DISCORD_PUBLIC_KEY not configured")
+            return False
         message = timestamp.encode() + raw_body
         verify_key = VerifyKey(bytes.fromhex(DISCORD_PUBLIC_KEY))
         verify_key.verify(message, bytes.fromhex(signature))
@@ -19,71 +22,91 @@ def verify_signature(raw_body, signature, timestamp):
     except (BadSignatureError, ValueError, TypeError) as e:
         print(f"Signature verification error: {e}")
         return False
+    except Exception as e:
+        print(f"Unexpected error in verify_signature: {e}")
+        return False
 
 def handler(request):
-    if not hasattr(request, 'method') or request.method != 'POST':
-        return {
-            'statusCode': 405,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Method not allowed'})
-        }
-    
-    headers = {}
-    if hasattr(request, 'headers'):
-        h = request.headers
-        if isinstance(h, dict):
-            headers = h
-        else:
-            try:
-                headers = dict(h)
-            except:
-                headers = {}
-    
-    signature = headers.get('x-signature-ed25519', '') or headers.get('X-Signature-Ed25519', '')
-    timestamp = headers.get('x-signature-timestamp', '') or headers.get('X-Signature-Timestamp', '')
-    
-    raw_body = b''
-    if hasattr(request, 'body'):
-        body = request.body
-        if isinstance(body, str):
-            raw_body = body.encode('utf-8')
-        elif body is not None:
-            raw_body = bytes(body) if not isinstance(body, bytes) else body
-    
-    if not DISCORD_PUBLIC_KEY:
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'DISCORD_PUBLIC_KEY not configured'})
-        }
-    
-    if not verify_signature(raw_body, signature, timestamp):
-        return {
-            'statusCode': 401,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Invalid signature'})
-        }
-    
     try:
-        data = json.loads(raw_body.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return {
-            'statusCode': 400,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Invalid JSON'})
-        }
-    
-    if data.get('type') == 1:
-        return {
-            'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'type': 1})
-        }
-    
-    if data.get('type') == 2:
-        command_name = data.get('data', {}).get('name', '')
+        method = 'GET'
+        if hasattr(request, 'method'):
+            try:
+                method = request.method
+            except Exception as e:
+                print(f"Error accessing request.method: {e}")
         
-        if command_name == '小智':
+        if method != 'POST':
+            return {
+                'statusCode': 405,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Method not allowed'})
+            }
+        
+        headers = {}
+        try:
+            if hasattr(request, 'headers'):
+                h = request.headers
+                if isinstance(h, dict):
+                    headers = h
+                else:
+                    try:
+                        headers = dict(h)
+                    except:
+                        headers = {}
+        except Exception as e:
+            print(f"Error reading headers: {e}")
+            headers = {}
+        
+        signature = headers.get('x-signature-ed25519', '') or headers.get('X-Signature-Ed25519', '')
+        timestamp = headers.get('x-signature-timestamp', '') or headers.get('X-Signature-Timestamp', '')
+        
+        raw_body = b''
+        try:
+            if hasattr(request, 'body'):
+                body = request.body
+                if isinstance(body, str):
+                    raw_body = body.encode('utf-8')
+                elif body is not None:
+                    raw_body = bytes(body) if not isinstance(body, bytes) else body
+        except Exception as e:
+            print(f"Error reading request body: {e}")
+            raw_body = b''
+        
+        if not DISCORD_PUBLIC_KEY:
+            return {
+                'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'DISCORD_PUBLIC_KEY not configured'})
+            }
+        
+        if not verify_signature(raw_body, signature, timestamp):
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Invalid signature'})
+            }
+        
+        try:
+            data = json.loads(raw_body.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            print(f"JSON decode error: {e}")
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Invalid JSON'})
+            }
+        
+        if data.get('type') == 1:
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'type': 1})
+            }
+        
+        if data.get('type') == 2:
+            command_name = data.get('data', {}).get('name', '')
+            
+            if command_name == '小智':
             options = data.get('data', {}).get('options', [])
             if not options:
                 return {
@@ -216,9 +239,20 @@ def handler(request):
                         }
                     })
                 }
+            
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Unknown interaction type'})
+            }
     
-    return {
-        'statusCode': 400,
-        'headers': {'Content-Type': 'application/json'},
-        'body': json.dumps({'error': 'Unknown interaction type'})
-    }
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Unhandled exception in handler: {error_msg}")
+        import traceback
+        print(traceback.format_exc())
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': 'Internal server error'})
+        }
