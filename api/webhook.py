@@ -105,145 +105,144 @@ def handler(request):
         
         if data.get('type') == 2:
             command_name = data.get('data', {}).get('name', '')
-            
             if command_name == '小智':
-            options = data.get('data', {}).get('options', [])
-            if not options:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'type': 4,
-                        'data': {
-                            'content': '請輸入有效的訊息內容'
-                        }
-                    })
-                }
-            
-            message = options[0].get('value', '')
-            
-            if not message or len(message.strip()) == 0:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'type': 4,
-                        'data': {
-                            'content': '請輸入有效的訊息內容'
-                        }
-                    })
-                }
-            
-            if len(message) > 2000:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'type': 4,
-                        'data': {
-                            'content': '訊息長度不能超過 2000 字元'
-                        }
-                    })
-                }
-            
-            if not GROQ_API_KEY:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'type': 4,
-                        'data': {
-                            'embeds': [{
-                                'color': 0xFF0000,
-                                'author': {'name': '小智'},
-                                'description': '🔐 API key 未設定，請檢查環境變數'
-                            }]
-                        }
-                    })
-                }
-            
-            start_time = time.time()
-            
-            try:
-                groq_client = Groq(api_key=GROQ_API_KEY)
-                chat_completion = groq_client.chat.completions.create(
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "你是一個友善、自然的 AI 助手，由 Groq AI 提供技術支援。你的名字是小智，專門在 Discord 伺服器中幫助用戶回答問題和進行對話。請用繁體中文以自然、口語化的方式回應，就像和朋友聊天一樣。避免使用過於正式或生硬的語氣，讓對話更流暢自然。當被問到你是誰、你的身分或相關問題時，請自然地介紹自己是小智。"
+                options = data.get('data', {}).get('options', [])
+                if not options:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({
+                            'type': 4,
+                            'data': {
+                                'content': '請輸入有效的訊息內容'
+                            }
+                        })
+                    }
+                
+                message = options[0].get('value', '')
+                
+                if not message or len(message.strip()) == 0:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({
+                            'type': 4,
+                            'data': {
+                                'content': '請輸入有效的訊息內容'
+                            }
+                        })
+                    }
+                
+                if len(message) > 2000:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({
+                            'type': 4,
+                            'data': {
+                                'content': '訊息長度不能超過 2000 字元'
+                            }
+                        })
+                    }
+                
+                if not GROQ_API_KEY:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({
+                            'type': 4,
+                            'data': {
+                                'embeds': [{
+                                    'color': 0xFF0000,
+                                    'author': {'name': '小智'},
+                                    'description': '🔐 API key 未設定，請檢查環境變數'
+                                }]
+                            }
+                        })
+                    }
+                
+                start_time = time.time()
+                
+                try:
+                    groq_client = Groq(api_key=GROQ_API_KEY)
+                    chat_completion = groq_client.chat.completions.create(
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "你是一個友善、自然的 AI 助手，由 Groq AI 提供技術支援。你的名字是小智，專門在 Discord 伺服器中幫助用戶回答問題和進行對話。請用繁體中文以自然、口語化的方式回應，就像和朋友聊天一樣。避免使用過於正式或生硬的語氣，讓對話更流暢自然。當被問到你是誰、你的身分或相關問題時，請自然地介紹自己是小智。"
+                            },
+                            {
+                                "role": "user",
+                                "content": message
+                            }
+                        ],
+                        model="llama-3.3-70b-versatile",
+                        temperature=0.7,
+                        max_tokens=1024
+                    )
+                    
+                    response_text = chat_completion.choices[0].message.content
+                    
+                    if len(response_text) > 2000:
+                        response_text = response_text[:1997] + "..."
+                    
+                    elapsed_time = time.time() - start_time
+                    response_time_text = f"⏱️ 回應時間: {elapsed_time:.2f} 秒"
+                    
+                    embed = {
+                        "description": response_text,
+                        "color": 0x5865F2,
+                        "footer": {
+                            "text": response_time_text
                         },
-                        {
-                            "role": "user",
-                            "content": message
+                        "author": {
+                            "name": "小智"
                         }
-                    ],
-                    model="llama-3.3-70b-versatile",
-                    temperature=0.7,
-                    max_tokens=1024
-                )
-                
-                response_text = chat_completion.choices[0].message.content
-                
-                if len(response_text) > 2000:
-                    response_text = response_text[:1997] + "..."
-                
-                elapsed_time = time.time() - start_time
-                response_time_text = f"⏱️ 回應時間: {elapsed_time:.2f} 秒"
-                
-                embed = {
-                    "description": response_text,
-                    "color": 0x5865F2,
-                    "footer": {
-                        "text": response_time_text
-                    },
-                    "author": {
-                        "name": "小智"
                     }
-                }
-                
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'type': 4,
-                        'data': {
-                            'embeds': [embed]
-                        }
-                    })
-                }
-                
-            except Exception as e:
-                error_msg = str(e)
-                print(f"Groq API error: {error_msg}")
-                embed = {
-                    "color": 0xFF0000,
-                    "author": {
-                        "name": "小智"
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({
+                            'type': 4,
+                            'data': {
+                                'embeds': [embed]
+                            }
+                        })
                     }
-                }
-                
-                if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
-                    embed["description"] = "🔐 API 驗證失敗，請檢查 API key 設定"
-                elif "rate_limit" in error_msg.lower() or "quota" in error_msg.lower():
-                    embed["description"] = "⚠️ API 使用量已達上限，請稍後再試"
-                else:
-                    embed["description"] = "❌ 發生錯誤，請稍後再試"
-                
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'type': 4,
-                        'data': {
-                            'embeds': [embed]
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"Groq API error: {error_msg}")
+                    embed = {
+                        "color": 0xFF0000,
+                        "author": {
+                            "name": "小智"
                         }
-                    })
-                }
+                    }
+                    
+                    if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
+                        embed["description"] = "🔐 API 驗證失敗，請檢查 API key 設定"
+                    elif "rate_limit" in error_msg.lower() or "quota" in error_msg.lower():
+                        embed["description"] = "⚠️ API 使用量已達上限，請稍後再試"
+                    else:
+                        embed["description"] = "❌ 發生錯誤，請稍後再試"
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({
+                            'type': 4,
+                            'data': {
+                                'embeds': [embed]
+                            }
+                        })
+                    }
             
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'Unknown interaction type'})
+                'body': json.dumps({'error': 'Unknown command'})
             }
     
     except Exception as e:
