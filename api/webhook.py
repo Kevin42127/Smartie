@@ -29,9 +29,16 @@ def verify_signature(raw_body, signature, timestamp):
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        print("=" * 50)
+        print("POST request received")
+        print(f"Path: {self.path}")
+        print(f"Headers: {dict(self.headers)}")
+        print("=" * 50)
         try:
             signature = self.headers.get('x-signature-ed25519', '') or self.headers.get('X-Signature-Ed25519', '')
             timestamp = self.headers.get('x-signature-timestamp', '') or self.headers.get('X-Signature-Timestamp', '')
+            print(f"Signature present: {bool(signature)}")
+            print(f"Timestamp present: {bool(timestamp)}")
             
             content_length = int(self.headers.get('Content-Length', 0))
             raw_body = self.rfile.read(content_length)
@@ -61,10 +68,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             
             if data.get('type') == 1:
+                print("Received Discord ping (type 1), responding with pong")
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({'type': 1}).encode())
+                print("Pong sent successfully")
                 return
             
             if data.get('type') == 2:
@@ -228,6 +237,10 @@ class Handler(BaseHTTPRequestHandler):
                 pass
     
     def do_GET(self):
+        print("=" * 50)
+        print("GET request received")
+        print(f"Path: {self.path}")
+        print("=" * 50)
         self.send_response(405)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
