@@ -4,7 +4,6 @@ import time
 from groq import Groq
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
-from flask import Response
 
 DISCORD_PUBLIC_KEY = os.getenv('DISCORD_PUBLIC_KEY')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
@@ -22,6 +21,8 @@ def verify_signature(raw_body, signature, timestamp):
         return False
 
 def handler(request):
+    from flask import Response
+    
     if request.method != 'POST':
         return Response(
             json.dumps({'error': 'Method not allowed'}),
