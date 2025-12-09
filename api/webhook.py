@@ -4,6 +4,7 @@ import time
 from groq import Groq
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
+from flask import Response
 
 DISCORD_PUBLIC_KEY = os.getenv('DISCORD_PUBLIC_KEY')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
@@ -16,43 +17,51 @@ def verify_signature(raw_body, signature, timestamp):
         verify_key = VerifyKey(bytes.fromhex(DISCORD_PUBLIC_KEY))
         verify_key.verify(message, bytes.fromhex(signature))
         return True
-    except (BadSignatureError, ValueError, TypeError):
+    except (BadSignatureError, ValueError, TypeError) as e:
+        print(f"Signature verification error: {e}")
         return False
 
 def handler(request):
     if request.method != 'POST':
-        return {
-            'statusCode': 405,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Method not allowed'})
-        }
+        return Response(
+            json.dumps({'error': 'Method not allowed'}),
+            status=405,
+            mimetype='application/json'
+        )
     
     signature = request.headers.get('x-signature-ed25519', '')
     timestamp = request.headers.get('x-signature-timestamp', '')
     raw_body = request.get_data()
     
+    if not DISCORD_PUBLIC_KEY:
+        return Response(
+            json.dumps({'error': 'DISCORD_PUBLIC_KEY not configured'}),
+            status=500,
+            mimetype='application/json'
+        )
+    
     if not verify_signature(raw_body, signature, timestamp):
-        return {
-            'statusCode': 401,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Invalid signature'})
-        }
+        return Response(
+            json.dumps({'error': 'Invalid signature'}),
+            status=401,
+            mimetype='application/json'
+        )
     
     try:
         data = json.loads(raw_body.decode('utf-8'))
     except json.JSONDecodeError:
-        return {
-            'statusCode': 400,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Invalid JSON'})
-        }
+        return Response(
+            json.dumps({'error': 'Invalid JSON'}),
+            status=400,
+            mimetype='application/json'
+        )
     
     if data.get('type') == 1:
-        return {
-            'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'type': 1})
-        }
+        return Response(
+            json.dumps({'type': 1}),
+            status=200,
+            mimetype='application/json'
+        )
     
     if data.get('type') == 2:
         command_name = data.get('data', {}).get('name', '')
@@ -60,42 +69,58 @@ def handler(request):
         if command_name == '小智':
             options = data.get('data', {}).get('options', [])
             if not options:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
+                return Response(
+                    json.dumps({
                         'type': 4,
                         'data': {
                             'content': '請輸入有效的訊息內容'
                         }
-                    })
-                }
+                    }),
+                    status=200,
+                    mimetype='application/json'
+                )
             
             message = options[0].get('value', '')
             
             if not message or len(message.strip()) == 0:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
+                return Response(
+                    json.dumps({
                         'type': 4,
                         'data': {
                             'content': '請輸入有效的訊息內容'
                         }
-                    })
-                }
+                    }),
+                    status=200,
+                    mimetype='application/json'
+                )
             
             if len(message) > 2000:
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
+                return Response(
+                    json.dumps({
                         'type': 4,
                         'data': {
                             'content': '訊息長度不能超過 2000 字元'
                         }
-                    })
-                }
+                    }),
+                    status=200,
+                    mimetype='application/json'
+                )
+            
+            if not GROQ_API_KEY:
+                return Response(
+                    json.dumps({
+                        'type': 4,
+                        'data': {
+                            'embeds': [{
+                                'color': 0xFF0000,
+                                'author': {'name': '小智'},
+                                'description': '🔐 API key 未設定，請檢查環境變數'
+                            }]
+                        }
+                    }),
+                    status=200,
+                    mimetype='application/json'
+                )
             
             start_time = time.time()
             
@@ -136,19 +161,20 @@ def handler(request):
                     }
                 }
                 
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
+                return Response(
+                    json.dumps({
                         'type': 4,
                         'data': {
                             'embeds': [embed]
                         }
-                    })
-                }
+                    }),
+                    status=200,
+                    mimetype='application/json'
+                )
                 
             except Exception as e:
                 error_msg = str(e)
+                print(f"Groq API error: {error_msg}")
                 embed = {
                     "color": 0xFF0000,
                     "author": {
@@ -163,19 +189,19 @@ def handler(request):
                 else:
                     embed["description"] = "❌ 發生錯誤，請稍後再試"
                 
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
+                return Response(
+                    json.dumps({
                         'type': 4,
                         'data': {
                             'embeds': [embed]
                         }
-                    })
-                }
+                    }),
+                    status=200,
+                    mimetype='application/json'
+                )
     
-    return {
-        'statusCode': 400,
-        'headers': {'Content-Type': 'application/json'},
-        'body': json.dumps({'error': 'Unknown interaction type'})
-    }
+    return Response(
+        json.dumps({'error': 'Unknown interaction type'}),
+        status=400,
+        mimetype='application/json'
+    )
