@@ -57,6 +57,19 @@ async def xiaozhi(interaction: discord.Interaction, message: str):
         return
     
     try:
+        message_length = len(message)
+        
+        if message_length > 1500:
+            await interaction.followup.send("⚠️ 偵測到長訊息，正在處理中...")
+        
+        estimated_tokens = message_length // 3
+        max_tokens_value = max(512, min(2048, 4096 - estimated_tokens - 200))
+        
+        if message_length > 1500:
+            system_prompt = "你是一個友善、自然的 AI 助手，由 Groq AI 提供技術支援。你的名字是小智，專門在 Discord 伺服器中幫助用戶回答問題和進行對話。\n\n重要：你必須且只能使用繁體中文回應，絕對不能使用簡體中文。所有回應都必須使用繁體中文字體，包括標點符號。如果遇到簡體中文輸入，請在回應時轉換為繁體中文。\n\n請用繁體中文以自然、口語化的方式回應，就像和朋友聊天一樣。避免使用過於正式或生硬的語氣，讓對話更流暢自然。當被問到你是誰、你的身分或相關問題時，請自然地介紹自己是小智。\n\n注意：用戶的訊息較長，請簡潔地回應重點。"
+        else:
+            system_prompt = "你是一個友善、自然的 AI 助手，由 Groq AI 提供技術支援。你的名字是小智，專門在 Discord 伺服器中幫助用戶回答問題和進行對話。\n\n重要：你必須且只能使用繁體中文回應，絕對不能使用簡體中文。所有回應都必須使用繁體中文字體，包括標點符號。如果遇到簡體中文輸入，請在回應時轉換為繁體中文。\n\n請用繁體中文以自然、口語化的方式回應，就像和朋友聊天一樣。避免使用過於正式或生硬的語氣，讓對話更流暢自然。當被問到你是誰、你的身分或相關問題時，請自然地介紹自己是小智。"
+        
         loop = asyncio.get_event_loop()
         chat_completion = await asyncio.wait_for(
             loop.run_in_executor(
@@ -65,7 +78,7 @@ async def xiaozhi(interaction: discord.Interaction, message: str):
                     messages=[
                         {
                             "role": "system",
-                            "content": "你是一個友善、自然的 AI 助手，由 Groq AI 提供技術支援。你的名字是小智，專門在 Discord 伺服器中幫助用戶回答問題和進行對話。\n\n重要：你必須且只能使用繁體中文回應，絕對不能使用簡體中文。所有回應都必須使用繁體中文字體，包括標點符號。如果遇到簡體中文輸入，請在回應時轉換為繁體中文。\n\n請用繁體中文以自然、口語化的方式回應，就像和朋友聊天一樣。避免使用過於正式或生硬的語氣，讓對話更流暢自然。當被問到你是誰、你的身分或相關問題時，請自然地介紹自己是小智。"
+                            "content": system_prompt
                         },
                         {
                             "role": "user",
@@ -74,10 +87,10 @@ async def xiaozhi(interaction: discord.Interaction, message: str):
                     ],
                     model="llama-3.3-70b-versatile",
                     temperature=0.7,
-                    max_tokens=1024
+                    max_tokens=max_tokens_value
                 )
             ),
-            timeout=30.0
+            timeout=60.0
         )
         
         response_text = chat_completion.choices[0].message.content
@@ -109,10 +122,13 @@ async def xiaozhi(interaction: discord.Interaction, message: str):
         embed = discord.Embed(color=0xFF0000)
         embed.set_author(name="小智", icon_url=bot.user.avatar.url if bot.user.avatar else None)
         
-        if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
+        error_lower = error_msg.lower()
+        if "api_key" in error_lower or "authentication" in error_lower:
             embed.description = "🔐 API 驗證失敗，請檢查 API key 設定"
-        elif "rate_limit" in error_msg.lower() or "quota" in error_msg.lower():
+        elif "rate_limit" in error_lower or "quota" in error_lower:
             embed.description = "⚠️ API 使用量已達上限，請稍後再試"
+        elif "context_length" in error_lower or "token" in error_lower or "length" in error_lower or "too long" in error_lower:
+            embed.description = "📝 訊息太長了！請將訊息縮短或分段發送。建議長度約為 1500 字元以內。"
         else:
             embed.description = f"❌ 發生錯誤，請稍後再試"
             print(f"錯誤詳情: {error_msg}")
